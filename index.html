@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#10241b">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>Ролики с аятами</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri&family=Amiri+Quran&family=Cairo&family=Reem+Kufi&family=Scheherazade+New&family=Noto+Naskh+Arabic&display=swap">
 <style>
@@ -446,6 +451,9 @@ $('dl').onclick=()=>{
   document.body.appendChild(a);a.click();a.remove();
   say('Файл отправлен в загрузки.');
 };
+
+/* установка как приложение */
+if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 
 /* запуск */
 load();
