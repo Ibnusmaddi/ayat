@@ -56,6 +56,7 @@ li .meta{font-size:13px;color:var(--mut);margin-bottom:8px}
 <body>
 <div class="wrap">
 <h1>Ролики с аятами</h1>
+<div class="note" style="margin:-6px 0 10px">Версия 4: размер текста двумя пальцами</div>
 
 <div class="card">
 <canvas id="cv"></canvas>
@@ -66,7 +67,7 @@ li .meta{font-size:13px;color:var(--mut);margin-bottom:8px}
 <button class="btn ghost sm" id="ed">Изменить аят</button>
 <button class="btn ghost sm" id="rst">Вернуть текст на место</button>
 </div>
-<div id="st">Добавьте первый аят ниже. Текст на картинке можно двигать пальцем.</div>
+<div id="st">Добавьте первый аят ниже. Текст на картинке можно двигать пальцем, а двумя пальцами менять размер.</div>
 <video id="out" controls playsinline hidden style="width:100%;border-radius:10px;margin-top:8px"></video>
 </div>
 
@@ -133,7 +134,7 @@ li .meta{font-size:13px;color:var(--mut);margin-bottom:8px}
 <div class="row" style="margin-top:8px"><button class="btn ghost sm" id="fx">Убрать свой шрифт</button></div>
 <div class="note" id="fn"></div>
 <label for="fs">Размер текста</label>
-<input type="range" id="fs" min="36" max="110" step="2" value="64">
+<input type="range" id="fs" min="20" max="200" step="2" value="64">
 <div class="row" style="margin-top:10px"><span class="mut">Цвет текста</span><input type="color" id="tc" value="#ffffff"></div>
 </div>
 
@@ -158,7 +159,7 @@ const TYPES=['video/mp4;codecs=avc1,mp4a.40.2','video/mp4;codecs=avc1','video/mp
 const POS0={ax:.5,ay:.42,tx:.5,ty:.7};
 let segs=[],sel=0,editing=-1,bgEl=null,bgVideo=false,bgName='',bgColor='#10241b',dim=.35,fsize=64,tcolor='#ffffff';
 let customFont=false,ff0=null,preset='',musicBuf=null,musicName='',actx=null,playing=false,lastBlob=null,ext='webm',boxes=[],dragK=null,off=null;
-let pos={...POS0};
+let pos={...POS0},tscale=1;
 
 const say=t=>{$('st').textContent=t};
 const note=(id,t)=>{const n=$(id);if(n)n.textContent=t;say(t)};
@@ -166,12 +167,12 @@ const fam=()=>(customFont?'"UserFont",':'')+(preset?'"'+preset+'",':'')+DEF;
 const total=()=>segs.reduce((a,s)=>a+s.dur,0);
 
 /* память браузера: настройки и шрифт */
-function save(){try{localStorage.setItem('ayat1',JSON.stringify({segs,pos,fsize,tcolor,dim,bgColor,preset}))}catch(e){}}
+function save(){try{localStorage.setItem('ayat1',JSON.stringify({segs,pos,fsize,tscale,tcolor,dim,bgColor,preset}))}catch(e){}}
 function load(){
   try{
     const s=JSON.parse(localStorage.getItem('ayat1')||'null');
     if(s){
-      segs=s.segs||[];pos={...POS0,...(s.pos||{})};fsize=s.fsize||fsize;tcolor=s.tcolor||tcolor;
+      segs=s.segs||[];pos={...POS0,...(s.pos||{})};fsize=s.fsize||fsize;tscale=s.tscale||1;tcolor=s.tcolor||tcolor;
       if(typeof s.dim==='number')dim=s.dim;bgColor=s.bgColor||bgColor;preset=s.preset||'';
     }
   }catch(e){}
@@ -241,7 +242,7 @@ function draw(seg,alpha,frames){
   drawBg();boxes=[];
   if(!seg)return;
   ctx.save();ctx.globalAlpha=alpha;ctx.fillStyle=tcolor;ctx.textAlign='center';ctx.textBaseline='middle';
-  const maxW=W-60,ts=Math.round(fsize*.42);
+  const maxW=W-60,ts=Math.round(fsize*.42*tscale);
   if(seg.text){
     const mk=seg.n?toAr(seg.n):'';
     ctx.direction='rtl';ctx.font=fsize+'px '+fam();
@@ -265,25 +266,43 @@ function draw(seg,alpha,frames){
 
 /* перетаскивание текста */
 const cpt=e=>{const r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)/r.width*W,y:(e.clientY-r.top)/r.height*H}};
+const ptr=new Map();let pinch=null;
+const hit=p=>{for(const b of [...boxes].reverse()){if(p.x>=b.x0&&p.x<=b.x1&&p.y>=b.y0&&p.y<=b.y1)return b}return null};
 cv.addEventListener('pointerdown',e=>{
-  if(playing)return;const p=cpt(e);
-  for(const b of [...boxes].reverse()){
-    if(p.x>=b.x0&&p.x<=b.x1&&p.y>=b.y0&&p.y<=b.y1){
-      dragK=b.k;off={x:p.x-(b.k==='a'?pos.ax:pos.tx)*W,y:p.y-(b.k==='a'?pos.ay:pos.ty)*H};
-      try{cv.setPointerCapture(e.pointerId)}catch(x){}
-      draw(segs[sel]||null,1,true);return;
-    }
+  if(playing)return;
+  const p=cpt(e);ptr.set(e.pointerId,p);
+  try{cv.setPointerCapture(e.pointerId)}catch(x){}
+  if(ptr.size===2){
+    const [a,b]=[...ptr.values()],m={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+    const h=hit(m),k=h?h.k:(dragK||'a');
+    dragK=null;
+    pinch={k,d0:Math.hypot(a.x-b.x,a.y-b.y)||1,base:k==='a'?fsize:tscale};
+    return;
   }
+  const h=hit(p);
+  if(h){dragK=h.k;off={x:p.x-(h.k==='a'?pos.ax:pos.tx)*W,y:p.y-(h.k==='a'?pos.ay:pos.ty)*H};draw(segs[sel]||null,1,true)}
 });
 cv.addEventListener('pointermove',e=>{
-  if(!dragK)return;const p=cpt(e);
+  if(!ptr.has(e.pointerId))return;
+  const p=cpt(e);ptr.set(e.pointerId,p);
+  if(pinch&&ptr.size>=2){
+    const [a,b]=[...ptr.values()],f=Math.hypot(a.x-b.x,a.y-b.y)/pinch.d0;
+    if(pinch.k==='a'){fsize=Math.round(Math.min(200,Math.max(20,pinch.base*f)));$('fs').value=fsize}
+    else tscale=Math.min(4,Math.max(.4,pinch.base*f));
+    draw(segs[sel]||null,1,true);return;
+  }
+  if(!dragK)return;
   const nx=Math.min(1,Math.max(0,(p.x-off.x)/W)),ny=Math.min(1,Math.max(0,(p.y-off.y)/H));
   if(dragK==='a'){pos.ax=nx;pos.ay=ny}else{pos.tx=nx;pos.ty=ny}
   draw(segs[sel]||null,1,true);
 });
-const endDrag=()=>{if(dragK){dragK=null;refresh()}};
+const endDrag=e=>{
+  ptr.delete(e.pointerId);
+  if(pinch&&ptr.size<2){pinch=null;refresh()}
+  if(dragK){dragK=null;refresh()}
+};
 cv.addEventListener('pointerup',endDrag);cv.addEventListener('pointercancel',endDrag);
-$('rst').onclick=()=>{pos={...POS0};refresh()};
+$('rst').onclick=()=>{pos={...POS0};tscale=1;refresh()};
 
 /* список, таймлайн */
 function refresh(){
