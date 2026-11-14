@@ -69,12 +69,14 @@ input[type=range],input[type=checkbox]{accent-color:var(--ac)}
 .wd.on{background:var(--bl);border-color:var(--ac)}
 .wd.num{border-radius:50%;font-size:14px;padding:6px 10px;color:var(--mut)}
 .vid video{width:100%;border-radius:10px;margin:6px 0}
+.w{cursor:pointer;border-radius:8px;padding:0 2px}.w:active{background:var(--bl)}
+.ayn{display:inline-flex;align-items:center;justify-content:center;min-width:1.6em;height:1.6em;border:1.5px solid var(--ac);border-radius:50%;font-size:.55em;margin:0 .3em;direction:ltr;color:var(--ac);vertical-align:middle}
 </style>
 </head>
 <body>
 <div class="wrap">
 <h1>Ролики с аятами</h1>
-<div class="note" style="margin:-6px 0 10px">Версия 7: чтение Корана и чтецы</div>
+<div class="note" style="margin:-6px 0 10px">Версия 9: страницы как в мусхафе и частота слов</div>
 <section id="t-create" class="tab" hidden>
 
 <div class="card">
@@ -186,6 +188,15 @@ input[type=range],input[type=checkbox]{accent-color:var(--ac)}
 <div id="qlist"></div></div>
 </section>
 
+<section id="t-page" class="tab" hidden>
+<div class="card">
+<div class="row" style="justify-content:space-between"><button class="btn ghost sm" id="pgback">К сурам</button><button class="btn ghost sm" id="pglist">Выбрать аяты для видео</button></div>
+<div id="pgmeta" class="note" style="text-align:center;margin:10px 0 4px"></div>
+<div id="pgbody"></div>
+<div class="row" style="justify-content:space-between;margin-top:12px"><button class="btn ghost sm" id="pgnext">Следующая</button><div style="text-align:center"><span id="pginfo" class="note"></span><br><input type="number" id="pgn" min="1" max="604" style="width:90px;margin:4px 4px 0 0"><button class="btn ghost sm" id="pggo">Перейти</button></div><button class="btn ghost sm" id="pgprev">Предыдущая</button></div>
+</div>
+</section>
+
 <section id="t-read" class="tab" hidden>
 <div class="card">
 <div class="row" style="justify-content:space-between;margin-bottom:8px"><button class="btn ghost sm" id="rback">Назад</button><div id="rtitle" style="font-weight:600"></div></div>
@@ -203,8 +214,14 @@ input[type=range],input[type=checkbox]{accent-color:var(--ac)}
 
 <section id="t-profile" class="tab" hidden>
 <div class="card"><h2>Мои видео</h2><div id="vlist" class="note">Пока нет сохранённых видео.</div></div>
+<div class="card"><h2>Мой словарь слов</h2>
+<div class="note" style="margin:0 0 8px">Значения слов, которые ты вписал (по-русски и по-чеченски). Их можно сохранить в файл и загрузить обратно.</div>
+<div class="row"><button class="btn ghost sm" id="dexp">Скачать словарь</button></div>
+<label for="dimp">Загрузить словарь из файла</label><input type="file" id="dimp">
+<div class="note" id="dn"></div></div>
 </section>
 </div>
+<div id="wp" hidden style="position:fixed;inset:0;background:#000a;z-index:40;display:flex;align-items:flex-end;justify-content:center"><div class="card" id="wpc" style="width:100%;max-width:560px;margin:0;border-radius:18px 18px 0 0;max-height:85vh;overflow:auto"></div></div>
 <nav id="nav"></nav>
 
 <script>
@@ -662,7 +679,7 @@ function moveBound(t){
 }
 
 /* вкладки и дизайн */
-const TABS=['home','quran','read','create','audio','profile'];
+const TABS=['home','quran','page','read','create','audio','profile'];
 const IC={
  home:'<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
  quran:'<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M8 4v13"/>',
@@ -675,7 +692,7 @@ $('nav').onclick=e=>{const b=e.target.closest('button');if(b)go(b.dataset.t)};
 document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
 function go(t){
   TABS.forEach(x=>{$('t-'+x).hidden=x!==t});
-  document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===(t==='read'?'quran':t)));
+  document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===((t==='read'||t==='page')?'quran':t)));
   if(t==='create')refresh();
   if(t==='home')$('hcont').textContent=segs.length?'Аятов в ролике: '+segs.length+', длина '+total()+' с.':'Пока нет аятов.';
   if(t==='quran')renderQ($('qs').value);
@@ -689,7 +706,7 @@ function renderQ(q){
     const lab=(i+1)+' '+n;if(q&&!lab.toLowerCase().includes(q))return;
     const r=document.createElement('div');r.className='srow cl';
     r.innerHTML='<div class="no">'+(i+1)+'</div><div class="nm">'+n+'</div><div class="ct">'+SC[i]+' ая.</div>';
-    r.onclick=()=>openSurah(i+1);
+    r.onclick=()=>openSurahPage(i+1);
     box.appendChild(r);
   });
 }
@@ -782,7 +799,8 @@ function drawRead(){
   RS.A.forEach(a=>{
     const n=a.numberInSurah,y=RS.T.find(z=>z.numberInSurah===n),u=RS.U.find(z=>z.numberInSurah===n);
     const d=document.createElement('div');d.className='srow cl'+(rsel.has(n)?' on':'');d.style.display='block';
-    const ar=document.createElement('div');ar.dir='rtl';ar.style.cssText='font-size:26px;line-height:2.1';ar.style.fontFamily=fam();ar.textContent=cleanA(a.text,RS.id,n);
+    const ar=document.createElement('div');ar.dir='rtl';ar.style.cssText='font-size:26px;line-height:2.1';ar.style.fontFamily=fam();const toks=cleanA(a.text,RS.id,n).split(/\s+/).filter(Boolean);
+    toks.forEach((t,i)=>{const sp=document.createElement('span');sp.className='w';sp.textContent=t;sp.onclick=e=>{e.stopPropagation();showWord(RS.id,n,i,toks.length,t)};ar.appendChild(sp);ar.appendChild(document.createTextNode(' '))});
     const tr=document.createElement('div');tr.className='note';tr.style.margin='2px 0 8px';tr.textContent=y?y.text.replace(/<[^>]*>/g,'').trim():'';
     const f=document.createElement('div');f.className='row';
     const nn=document.createElement('span');nn.className='ct';nn.textContent='Аят '+n;f.appendChild(nn);
@@ -813,6 +831,116 @@ $('rmake').onclick=()=>{
   });
   sel=segs.length-ns.length;go('create');
 };
+
+/* значения слов */
+const DK='ayat-dict',WC={};
+const IS='width:100%;box-sizing:border-box;border:1px solid var(--bd);background:var(--bg);color:var(--tx);border-radius:10px;padding:10px;font:inherit;margin-bottom:8px';
+const dget=()=>{try{return JSON.parse(localStorage.getItem(DK)||'{}')}catch(e){return{}}};
+const nk=w=>w.replace(/[\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g,'').replace(/[ٱأإآ]/g,'ا');
+async function getWords(sid,n){
+  const k=sid+':'+n;if(WC[k])return WC[k];
+  const r=await fetch('https://api.islamic.app/v1/words/'+sid+'/'+n);
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  const j=await r.json();
+  const find=o=>{if(Array.isArray(o)&&o.length&&o[0]&&typeof o[0]==='object'&&('position' in o[0]))return o;if(o&&typeof o==='object')for(const v of Object.values(o)){const f=find(v);if(f)return f}return null};
+  const tx=o=>typeof o==='string'?o:(o&&o.text)||'';
+  const arr=(find(j)||[]).filter(w=>!w.char_type_name||w.char_type_name==='word');
+  return WC[k]=arr.map((w,i)=>({tl:tx(w.transliteration),en:tx(w.translation),au:w.audio_url||w.audio||''}));
+}
+async function autoRu(en){
+  let c={};try{c=JSON.parse(localStorage.getItem('ayat-auto')||'{}')}catch(e){}
+  if(c[en])return c[en];
+  const j=await (await fetch('https://api.mymemory.translated.net/get?q='+encodeURIComponent(en)+'&langpair=en|ru')).json();
+  const t=(j.responseData&&j.responseData.translatedText)||'';
+  if(t){c[en]=t;try{localStorage.setItem('ayat-auto',JSON.stringify(c))}catch(e){}}
+  return t;
+}
+const wAudio=(u,sid,n,i)=>u?(u.startsWith('http')?u:'https://cdn.islamic.app'+(u.startsWith('/')?'':'/')+u):'https://cdn.islamic.app/quran/audio-word/'+sid+'/'+n+'/'+(i+1)+'.mp3';
+$('wp').onclick=e=>{if(e.target===$('wp'))$('wp').hidden=true};
+async function showWord(sid,n,i,cnt,tok){
+  const wp=$('wp'),c=$('wpc');wp.hidden=false;c.textContent='Загружаю...';
+  let ws=[];try{ws=await getWords(sid,n)}catch(e){}
+  const w=ws.length===cnt?ws[i]:null,key=nk(tok),d=dget()[key]||{};
+  const mk=(tag,css,txt)=>{const e=document.createElement(tag);if(css)e.style.cssText=css;if(txt!=null)e.textContent=txt;return e};
+  c.innerHTML='';
+  const fq=mk('div','text-align:center;color:var(--mut);font-size:14px;margin-bottom:8px','Считаю упоминания в Коране...');
+  getFreq().then(m=>{const q=m[nk(tok)];fq.textContent=q?'Такое слово встречается в Коране: '+q+' раз':'Количество упоминаний не нашлось'}).catch(()=>{fq.textContent='Не удалось посчитать упоминания (нужен интернет)'});
+  const ar=mk('div','text-align:center;font-size:44px;line-height:1.8;direction:rtl',tok);ar.style.fontFamily=fam();
+  c.append(ar,
+    mk('div','text-align:center;color:var(--mut)',w&&w.tl?w.tl:'транскрипция не найдена'),
+    mk('div','text-align:center;font-weight:600;margin:6px 0 10px',w&&w.en?w.en:(ws.length?'значение не удалось сопоставить':'база слов не отвечает')),fq);
+  const ru=mk('input',IS);ru.type='text';ru.value=d.ru||'';ru.placeholder='Значение по-русски';
+  const ce=mk('input',IS);ce.type='text';ce.value=d.ce||'';ce.placeholder='Значение по-чеченски';
+  const an=mk('div','font-size:13px;color:var(--mut);margin:-4px 0 8px','');
+  if(!d.ru&&w&&w.en)autoRu(w.en).then(t=>{if(t&&!ru.value){an.textContent='Автоперевод с английского (может быть неточным): '+t+'. Нажми «Взять автоперевод» или впиши своё.';an.dataset.t=t}}).catch(()=>{});
+  c.append(mk('div','color:var(--mut);font-size:14px','По-русски'),ru,an,mk('div','color:var(--mut);font-size:14px','По-чеченски'),ce);
+  const row=mk('div','display:flex;gap:8px;flex-wrap:wrap');
+  const save=btn('Сохранить',()=>{const D=dget();D[key]={ru:ru.value.trim(),ce:ce.value.trim()};try{localStorage.setItem(DK,JSON.stringify(D))}catch(e){}save.textContent='Сохранено'});
+  save.className='btn sm';
+  row.append(save,
+    btn('Взять автоперевод',()=>{if(an.dataset.t)ru.value=an.dataset.t}),
+    btn('Слушать слово',()=>{stopAudio();ra=new Audio(wAudio(w&&w.au,sid,n,i));ra.play().catch(()=>{})}),
+    btn('Весь аят',async()=>{try{const rec=localStorage.getItem('ayat-reciter')||'ar.alafasy';const j=await (await fetch('https://api.alquran.cloud/v1/ayah/'+sid+':'+n+'/'+rec)).json();stopAudio();ra=new Audio(j.data.audio);ra.play().catch(()=>{})}catch(e){}}),
+    btn('Переводы аята',async()=>{tr.textContent='Загружаю...';try{const j=await (await fetch('https://api.alquran.cloud/v1/ayah/'+sid+':'+n+'/'+$('trn').value)).json();tr.textContent=j.data.text.replace(/<[^>]*>/g,'').trim()}catch(e){tr.textContent='Перевод не загрузился.'}}),
+    btn('Закрыть',()=>{wp.hidden=true}));
+  const tr=mk('div','margin-top:10px;color:var(--tx)','');
+  c.append(row,tr);
+}
+$('dexp').onclick=()=>{const b=new Blob([JSON.stringify(dget(),null,1)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='slovar-ayat.json';document.body.appendChild(a);a.click();a.remove()};
+$('dimp').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const o=JSON.parse(await f.text());localStorage.setItem(DK,JSON.stringify(Object.assign(dget(),o)));$('dn').textContent='Словарь загружен, слов: '+Object.keys(o).length}catch(x){$('dn').textContent='Файл словаря не открылся.'}};
+
+/* частота слов в Коране */
+let FQ=null;
+async function getFreq(){
+  if(FQ)return FQ;
+  try{const c=localStorage.getItem('ayat-freq');if(c){FQ=JSON.parse(c);return FQ}}catch(e){}
+  const j=await (await fetch('https://api.alquran.cloud/v1/quran/quran-uthmani')).json();
+  const m={};
+  j.data.surahs.forEach(su=>su.ayahs.forEach(a=>{
+    let p=a.text.trim().split(/\s+/);
+    if(a.numberInSurah===1&&su.number!==1&&su.number!==9&&p.length>4&&nk(p[0]).startsWith('بسم'))p=p.slice(4);
+    p.forEach(w=>{const k=nk(w);if(k)m[k]=(m[k]||0)+1});
+  }));
+  FQ=m;try{localStorage.setItem('ayat-freq',JSON.stringify(m))}catch(e){}
+  return m;
+}
+
+/* страницы как в мусхафе */
+let PG=1,PS=1;
+async function openSurahPage(i){
+  PS=i;go('page');$('pgbody').textContent='Загружаю...';
+  try{const j=await (await fetch('https://api.alquran.cloud/v1/ayah/'+i+':1/quran-uthmani')).json();openPage(j.data.page)}
+  catch(e){$('pgbody').textContent='Не удалось загрузить. Проверьте интернет.'}
+}
+async function openPage(p){
+  PG=Math.max(1,Math.min(604,+p||1));go('page');
+  const box=$('pgbody');box.textContent='Загружаю...';$('pginfo').textContent='Страница '+PG+' из 604';$('pgn').value=PG;
+  let ay;
+  try{const j=await (await fetch('https://api.alquran.cloud/v1/page/'+PG+'/quran-uthmani')).json();ay=j.data.ayahs}
+  catch(e){box.textContent='Не удалось загрузить. Проверьте интернет.';return}
+  box.innerHTML='';
+  const f=ay[0];PS=f.surah.number;
+  $('pgmeta').textContent='СУРА '+f.surah.number+' · '+SN[f.surah.number-1].toUpperCase()+' · ДЖУЗ '+f.juz;
+  let para=null;
+  ay.forEach(a=>{
+    const sid=a.surah.number,n=a.numberInSurah;
+    if(n===1){
+      const h=document.createElement('div');h.style.cssText='text-align:center;font-size:20px;margin:14px 0 6px;color:var(--ac)';h.textContent=a.surah.name+'  ·  '+SN[sid-1];box.appendChild(h);
+      if(sid!==1&&sid!==9){const b=document.createElement('div');b.dir='rtl';b.style.cssText='text-align:center;font-size:26px;line-height:2';b.style.fontFamily=fam();b.textContent='بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ';box.appendChild(b)}
+      para=null;
+    }
+    if(!para){para=document.createElement('div');para.dir='rtl';para.style.cssText='text-align:justify;font-size:28px;line-height:2.3';para.style.fontFamily=fam();box.appendChild(para)}
+    const toks=cleanA(a.text,sid,n).split(/\s+/).filter(Boolean);
+    toks.forEach((t,i)=>{const sp=document.createElement('span');sp.className='w';sp.textContent=t;sp.onclick=()=>showWord(sid,n,i,toks.length,t);para.appendChild(sp);para.appendChild(document.createTextNode(' '))});
+    const m=document.createElement('span');m.className='ayn';m.textContent=toAr(n);para.appendChild(m);para.appendChild(document.createTextNode(' '));
+  });
+  window.scrollTo(0,0);
+}
+$('pgprev').onclick=()=>openPage(PG-1);
+$('pgnext').onclick=()=>openPage(PG+1);
+$('pggo').onclick=()=>openPage($('pgn').value);
+$('pgback').onclick=()=>go('quran');
+$('pglist').onclick=()=>openSurah(PS);
 
 /* установка как приложение */
 if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
