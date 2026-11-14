@@ -65,13 +65,16 @@ input[type=range],input[type=checkbox]{accent-color:var(--ac)}
 .srow .no{width:34px;height:34px;border-radius:50%;background:var(--bl);display:flex;align-items:center;justify-content:center;font-size:13px;flex:none}
 .srow .nm{flex:1}.srow .ct{color:var(--mut);font-size:13px}
 .srow.cl{cursor:pointer}.srow.on{border-color:var(--ac)}
+.wd{font-size:22px;line-height:1.5;padding:4px 12px;border:1px solid var(--bd);border-radius:12px;background:transparent;color:var(--tx)}
+.wd.on{background:var(--bl);border-color:var(--ac)}
+.wd.num{border-radius:50%;font-size:14px;padding:6px 10px;color:var(--mut)}
 .vid video{width:100%;border-radius:10px;margin:6px 0}
 </style>
 </head>
 <body>
 <div class="wrap">
 <h1>Ролики с аятами</h1>
-<div class="note" style="margin:-6px 0 10px">Версия 5: новый дизайн и вкладки</div>
+<div class="note" style="margin:-6px 0 10px">Версия 7: чтение Корана и чтецы</div>
 <section id="t-create" class="tab" hidden>
 
 <div class="card">
@@ -85,6 +88,12 @@ input[type=range],input[type=checkbox]{accent-color:var(--ac)}
 </div>
 <div id="st">Добавьте первый аят ниже. Текст на картинке можно двигать пальцем, а двумя пальцами менять размер.</div>
 <video id="out" controls playsinline hidden style="width:100%;border-radius:10px;margin-top:8px"></video>
+</div>
+
+<div class="card">
+<h2 id="wt">Слова</h2>
+<div class="note" style="margin:0 0 8px">Нажми на слово, и граница кадра подвинется к нему. Остальные слова аята уйдут в следующий кадр.</div>
+<div id="wlist" dir="rtl" style="display:flex;flex-wrap:wrap;gap:8px"></div>
 </div>
 
 <div class="card">
@@ -177,6 +186,15 @@ input[type=range],input[type=checkbox]{accent-color:var(--ac)}
 <div id="qlist"></div></div>
 </section>
 
+<section id="t-read" class="tab" hidden>
+<div class="card">
+<div class="row" style="justify-content:space-between;margin-bottom:8px"><button class="btn ghost sm" id="rback">Назад</button><div id="rtitle" style="font-weight:600"></div></div>
+<div class="row"><button class="btn ghost sm" id="rplay">Читать подряд</button><button class="btn ghost sm" id="rall">Выбрать все</button><button class="btn sm" id="rmake">Сделать видео из выбранных</button></div>
+<div class="note" id="rnote">Загружаю...</div>
+<div id="rbody" style="margin-top:8px"></div>
+</div>
+</section>
+
 <section id="t-audio" class="tab" hidden>
 <div class="card"><h2>Чтецы Корана</h2>
 <div class="note" style="margin:0 0 10px">Выбери чтеца и нажми «Слушать». Озвучка ролика голосом чтеца будет следующим шагом, выбор сохранится.</div>
@@ -198,7 +216,7 @@ const TYPES=['video/mp4;codecs=avc1,mp4a.40.2','video/mp4;codecs=avc1','video/mp
 const POS0={ax:.5,ay:.42,tx:.5,ty:.7};
 let segs=[],sel=0,editing=-1,bgEl=null,bgVideo=false,bgName='',bgColor='#10241b',dim=.35,fsize=64,tcolor='#ffffff';
 let customFont=false,ff0=null,preset='',musicBuf=null,musicName='',actx=null,playing=false,lastBlob=null,ext='webm',boxes=[],dragK=null,off=null;
-let pos={...POS0},tscale=1;
+let pos={...POS0},tscale=1,gc=Date.now();
 
 const say=t=>{$('st').textContent=t};
 const note=(id,t)=>{const n=$(id);if(n)n.textContent=t;say(t)};
@@ -346,7 +364,7 @@ $('rst').onclick=()=>{pos={...POS0};tscale=1;refresh()};
 /* список, таймлайн */
 function refresh(){
   if(sel>=segs.length)sel=Math.max(0,segs.length-1);
-  renderList();renderTL();
+  renderList();renderTL();renderWords();
   if(!playing)draw(segs[sel]||null,1,true);
   $('tot').textContent=total();
   save();
@@ -361,7 +379,7 @@ function renderList(){
     const m=document.createElement('div');m.className='meta';m.textContent=(i+1)+'. '+s.dur+' с'+(s.tr?' · '+s.tr.slice(0,50):'');
     const r=document.createElement('div');r.className='row';
     r.append(
-      btn('Повторить',()=>{segs.splice(i+1,0,{...s});sel=i+1;refresh()}),
+      btn('Повторить',()=>{segs.splice(i+1,0,{...s,g:++gc});sel=i+1;refresh()}),
       btn('Вверх',()=>{if(i>0){[segs[i-1],segs[i]]=[segs[i],segs[i-1]];sel=i-1;refresh()}}),
       btn('Вниз',()=>{if(i<segs.length-1){[segs[i+1],segs[i]]=[segs[i],segs[i+1]];sel=i+1;refresh()}}),
       btn('-1 с',()=>{if(s.dur>1){s.dur--;refresh()}}),
@@ -584,7 +602,7 @@ $('qadd').onclick=async()=>{
     let t=x.text.trim();
     if(n===1&&sid!==1&&sid!==9){const p=t.split(/\s+/);if(p.length>4&&p[0].replace(/[\u064B-\u065F\u0670\u0640]/g,'').startsWith('بسم'))t=p.slice(4).join(' ')}
     const w=t.split(/\s+/).length;
-    segs.push({text:t,tr:y?y.text.replace(/<[^>]*>/g,'').trim():'',dur:Math.min(25,Math.max(4,Math.ceil(w*0.6)+2)),n:String(n),fit:w<=7});
+    segs.push({text:t,tr:y?y.text.replace(/<[^>]*>/g,'').trim():'',dur:Math.min(25,Math.max(4,Math.ceil(w*0.6)+2)),n:String(n),fit:w<=7,g:++gc});
     added++;
   }
   sel=Math.max(0,segs.length-added);refresh();
@@ -592,8 +610,59 @@ $('qadd').onclick=async()=>{
 };
 fillSurahs('');
 
+/* слова и границы кадра */
+function grp(i){
+  const g=segs[i].g;if(g==null)return[i,i];
+  let lo=i,hi=i;
+  while(lo>0&&segs[lo-1].g===g)lo--;
+  while(hi<segs.length-1&&segs[hi+1].g===g)hi++;
+  return[lo,hi];
+}
+function renderWords(){
+  const box=$('wlist');box.innerHTML='';
+  if(!segs.length){$('wt').textContent='Слова';box.textContent='Добавьте аят, и здесь появятся его слова.';return}
+  const [lo,hi]=grp(sel);let idx=0;
+  for(let i=lo;i<=hi;i++){
+    segs[i].text.split(/\s+/).filter(Boolean).forEach(w=>{
+      const c=document.createElement('button');c.className='wd'+(i===sel?' on':'');c.textContent=w;c.style.fontFamily=fam();
+      const at=idx++;c.onclick=()=>moveBound(at);box.appendChild(c);
+    });
+  }
+  if(segs[hi].n){const c=document.createElement('span');c.className='wd num';c.textContent=toAr(segs[hi].n);box.appendChild(c)}
+  $('wt').textContent='Слова (кадр '+(sel-lo+1)+' из '+(hi-lo+1)+')';
+}
+function moveBound(t){
+  const [lo,hi]=grp(sel);
+  const g=segs[sel].g!=null?segs[sel].g:(segs[sel].g=++gc);
+  const words=[],S=[],E=[];
+  for(let i=lo;i<=hi;i++){S.push(words.length);segs[i].text.split(/\s+/).filter(Boolean).forEach(w=>words.push(w));E.push(words.length-1)}
+  const si=sel-lo,oldEnd=E[si],rng=[];
+  if(t>oldEnd){
+    E[si]=t;
+    for(let j=0;j<E.length;j++){if(j>si&&E[j]<=t)continue;rng.push({j,e:E[j]})}
+  }else if(t<S[si]){
+    for(let j=0;j<E.length;j++){
+      if(j<si){if(S[j]>=t)continue;rng.push({j,e:Math.min(E[j],t-1)})}else rng.push({j,e:E[j]});
+    }
+  }else if(t<oldEnd){
+    E[si]=t;
+    for(let j=0;j<E.length;j++)rng.push({j,e:E[j]});
+    if(si===E.length-1)rng.push({j:-1,e:oldEnd});
+  }else return;
+  const orig=segs.slice(lo,hi+1),total=orig.reduce((a,x)=>a+x.dur,0),nl=orig[orig.length-1].n;
+  let st=0;const ns=[];
+  rng.forEach((o,k)=>{
+    const base=o.j>=0?orig[o.j]:orig[si],wc=o.e-st+1;
+    ns.push({...base,text:words.slice(st,o.e+1).join(' '),g,n:'',tr:k===0?orig[0].tr:'',dur:Math.max(2,Math.round(total*wc/words.length))});
+    st=o.e+1;
+  });
+  ns[ns.length-1].n=nl;
+  const k=rng.findIndex(o=>o.j===si);
+  segs.splice(lo,hi-lo+1,...ns);sel=lo+Math.max(0,k);refresh();
+}
+
 /* вкладки и дизайн */
-const TABS=['home','quran','create','audio','profile'];
+const TABS=['home','quran','read','create','audio','profile'];
 const IC={
  home:'<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
  quran:'<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M8 4v13"/>',
@@ -606,7 +675,7 @@ $('nav').onclick=e=>{const b=e.target.closest('button');if(b)go(b.dataset.t)};
 document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
 function go(t){
   TABS.forEach(x=>{$('t-'+x).hidden=x!==t});
-  document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
+  document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===(t==='read'?'quran':t)));
   if(t==='create')refresh();
   if(t==='home')$('hcont').textContent=segs.length?'Аятов в ролике: '+segs.length+', длина '+total()+' с.':'Пока нет аятов.';
   if(t==='quran')renderQ($('qs').value);
@@ -620,29 +689,30 @@ function renderQ(q){
     const lab=(i+1)+' '+n;if(q&&!lab.toLowerCase().includes(q))return;
     const r=document.createElement('div');r.className='srow cl';
     r.innerHTML='<div class="no">'+(i+1)+'</div><div class="nm">'+n+'</div><div class="ct">'+SC[i]+' ая.</div>';
-    r.onclick=()=>{$('sq').value='';fillSurahs('');$('sur').value=i+1;resetRange();go('create');setTimeout(()=>$('sur').scrollIntoView({behavior:'smooth',block:'center'}),50)};
+    r.onclick=()=>openSurah(i+1);
     box.appendChild(r);
   });
 }
 $('qs').oninput=()=>renderQ($('qs').value);
 
 /* чтецы */
+const RU={'ar.alafasy':'Мишари Рашид аль-Афаси','ar.shaatree':'Абу Бакр аш-Шатри','ar.husary':'Махмуд Халиль аль-Хусари','ar.minshawi':'Мухаммад Сиддик аль-Миншави','ar.abdulbasitmurattal':'Абдул Басит Абдус-Самад','ar.mahermuaiqly':'Махер аль-Муайкли','ar.saoodshuraym':'Сауд аш-Шурайм','ar.hudhaify':'Али аль-Худайфи','ar.ahmedajamy':'Ахмад аль-Аджми'};
 let rl=null,pa=null;
 async function loadReciters(){
   if(rl)return;
   const box=$('rlist');
   try{
     const r=await fetch('https://api.alquran.cloud/v1/edition?format=audio&language=ar&type=versebyverse');
-    const j=await r.json();rl=j.data||[];
+    const j=await r.json();rl=(j.data||[]).sort((a,b)=>(RU[b.identifier]?1:0)-(RU[a.identifier]?1:0));
   }catch(e){box.textContent='Не удалось загрузить список. Проверьте интернет.';return}
   drawRl();
 }
 function drawRl(){
-  const box=$('rlist'),cur=localStorage.getItem('ayat-reciter')||'';
+  const box=$('rlist'),cur=localStorage.getItem('ayat-reciter')||'ar.alafasy';
   box.innerHTML='';
   rl.forEach(x=>{
     const r=document.createElement('div');r.className='srow'+(x.identifier===cur?' on':'');
-    const nm=document.createElement('div');nm.className='nm';nm.textContent=x.englishName||x.name;
+    const nm=document.createElement('div');nm.className='nm';nm.textContent=RU[x.identifier]||x.englishName||x.name;
     const play=btn('Слушать',async()=>{
       try{
         if(pa)pa.pause();
@@ -680,6 +750,69 @@ async function renderVids(){
     w.append(t,vd,r);box.appendChild(w);
   });
 }
+
+/* чтение Корана */
+let RS=null,ra=null,rsel=new Set();
+const cleanA=(t,sid,n)=>{
+  t=t.trim();
+  if(n===1&&sid!==1&&sid!==9){const p=t.split(/\s+/);if(p.length>4&&p[0].replace(/[\u064B-\u065F\u0670\u0640]/g,'').startsWith('بسم'))t=p.slice(4).join(' ')}
+  return t;
+};
+function stopAudio(){if(ra){ra.onended=null;ra.pause();ra=null}$('rplay').textContent='Читать подряд'}
+async function openSurah(i){
+  go('read');stopAudio();rsel=new Set();RS=null;
+  $('rtitle').textContent=i+'. '+SN[i-1];$('rbody').innerHTML='';$('rnote').textContent='Загружаю...';
+  const rec=localStorage.getItem('ayat-reciter')||'ar.alafasy',ed=$('trn').value;
+  const get=async list=>{
+    const r=await fetch('https://api.alquran.cloud/v1/surah/'+i+'/editions/'+list.join(','));
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const j=await r.json(),f=id=>j.data.find(x=>x.edition.identifier===id);
+    return{A:f('quran-uthmani').ayahs,T:f(ed)?f(ed).ayahs:[],U:f(rec)?f(rec).ayahs:[]};
+  };
+  try{RS=await get(['quran-uthmani',ed,rec])}
+  catch(e){
+    try{RS=await get(['quran-uthmani','ru.kuliev']);RS.U=[]}
+    catch(x){$('rnote').textContent='Не удалось загрузить. Проверьте интернет.';return}
+  }
+  RS.id=i;drawRead();
+}
+function drawRead(){
+  const box=$('rbody');box.innerHTML='';
+  $('rnote').textContent=RS.U.length?'Нажми на аят, чтобы выбрать его для видео. Кнопка «Слушать» проигрывает голос чтеца.':'Голос выбранного чтеца не нашёлся, текст доступен.';
+  RS.A.forEach(a=>{
+    const n=a.numberInSurah,y=RS.T.find(z=>z.numberInSurah===n),u=RS.U.find(z=>z.numberInSurah===n);
+    const d=document.createElement('div');d.className='srow cl'+(rsel.has(n)?' on':'');d.style.display='block';
+    const ar=document.createElement('div');ar.dir='rtl';ar.style.cssText='font-size:26px;line-height:2.1';ar.style.fontFamily=fam();ar.textContent=cleanA(a.text,RS.id,n);
+    const tr=document.createElement('div');tr.className='note';tr.style.margin='2px 0 8px';tr.textContent=y?y.text.replace(/<[^>]*>/g,'').trim():'';
+    const f=document.createElement('div');f.className='row';
+    const nn=document.createElement('span');nn.className='ct';nn.textContent='Аят '+n;f.appendChild(nn);
+    if(u)f.appendChild(btn('Слушать',e=>{e.stopPropagation();stopAudio();ra=new Audio(u.audio);ra.play().catch(()=>{})}));
+    d.append(ar,tr,f);
+    d.onclick=()=>{if(rsel.has(n))rsel.delete(n);else rsel.add(n);d.classList.toggle('on',rsel.has(n))};
+    box.appendChild(d);
+  });
+}
+$('rback').onclick=()=>{stopAudio();go('quran')};
+$('rall').onclick=()=>{if(!RS)return;if(rsel.size===RS.A.length)rsel=new Set();else RS.A.forEach(a=>rsel.add(a.numberInSurah));drawRead()};
+$('rplay').onclick=()=>{
+  if(!RS||!RS.U.length)return;
+  if(ra){stopAudio();return}
+  const q=RS.U.map(u=>u.audio);let k=0;
+  $('rplay').textContent='Остановить';
+  const next=()=>{if(k>=q.length){stopAudio();return}ra=new Audio(q[k++]);ra.onended=next;ra.play().catch(()=>stopAudio())};
+  next();
+};
+$('rmake').onclick=()=>{
+  if(!RS||!rsel.size){$('rnote').textContent='Сначала выберите аяты: нажмите на нужные.';return}
+  stopAudio();
+  const ns=[...rsel].sort((a,b)=>a-b).slice(0,60);
+  ns.forEach(n=>{
+    const x=RS.A.find(z=>z.numberInSurah===n),y=RS.T.find(z=>z.numberInSurah===n);
+    const t=cleanA(x.text,RS.id,n),w=t.split(/\s+/).length;
+    segs.push({text:t,tr:y?y.text.replace(/<[^>]*>/g,'').trim():'',dur:Math.min(25,Math.max(4,Math.ceil(w*0.6)+2)),n:String(n),fit:w<=7});
+  });
+  sel=segs.length-ns.length;go('create');
+};
 
 /* установка как приложение */
 if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
