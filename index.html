@@ -77,7 +77,7 @@ input[type=range],input[type=checkbox]{accent-color:var(--ac)}
 <body>
 <div class="wrap">
 <h1>Ролики с аятами</h1>
-<div class="note" style="margin:-6px 0 10px">Версия 10: мусхаф и аяты, русское значение слов</div>
+<div class="note" style="margin:-6px 0 10px">Версия 11: голос чтеца в ролике</div>
 <section id="t-create" class="tab" hidden>
 
 <div class="card">
@@ -174,6 +174,10 @@ input[type=range],input[type=checkbox]{accent-color:var(--ac)}
 <div class="row" style="margin-top:8px"><button class="btn ghost sm" id="mx">Убрать звук</button></div>
 <label for="mv">Громкость</label>
 <input type="range" id="mv" min="0" max="1" step="0.05" value="0.8">
+<div class="row" style="margin:12px 0 8px"><button class="btn sm" id="vgo">Озвучить голосом чтеца</button><button class="btn ghost sm" id="vno">Убрать голос</button></div>
+<label for="vv">Громкость голоса чтеца</label>
+<input type="range" id="vv" min="0" max="1" step="0.05" value="1">
+<div class="note" id="vn">Чтеца выбери во вкладке «Чтецы». Работает для аятов, добавленных из Корана, нужен интернет.</div>
 <label class="chk"><input type="checkbox" id="vsnd">Взять звук из фона-видео</label>
 </div>
 </section>
@@ -233,7 +237,7 @@ const TYPES=['video/mp4;codecs=avc1,mp4a.40.2','video/mp4;codecs=avc1','video/mp
 const POS0={ax:.5,ay:.42,tx:.5,ty:.7};
 let segs=[],sel=0,editing=-1,bgEl=null,bgVideo=false,bgName='',bgColor='#10241b',dim=.35,fsize=64,tcolor='#ffffff';
 let customFont=false,ff0=null,preset='',musicBuf=null,musicName='',actx=null,playing=false,lastBlob=null,ext='webm',boxes=[],dragK=null,off=null;
-let pos={...POS0},tscale=1,gc=Date.now();
+let pos={...POS0},tscale=1,gc=Date.now(),VO={},VOREC='';
 
 const say=t=>{$('st').textContent=t};
 const note=(id,t)=>{const n=$(id);if(n)n.textContent=t;say(t)};
@@ -412,7 +416,7 @@ function renderTL(){
   $('tlin').style.width=wpx+'px';
   const bar=(el,t)=>{const b=document.createElement('div');b.className='bar';b.style.width=wpx+'px';b.textContent=t;el.appendChild(b)};
   const lane=(id,fn)=>{const el=$(id);el.innerHTML='';fn(el)};
-  lane('l-snd',el=>bar(el,musicBuf?musicName:($('vsnd').checked&&bgVideo?'звук из видео':'нет звука')));
+  lane('l-snd',el=>bar(el,Object.keys(VO).length?'голос чтеца'+(musicBuf?' и '+musicName:''):(musicBuf?musicName:($('vsnd').checked&&bgVideo?'звук из видео':'нет звука'))));
   const blocks=(el,key)=>segs.forEach((s,i)=>{
     const d=document.createElement('div');
     d.className='blk'+(i===sel?' on':'')+(key==='tr'&&!s.tr?' empty':'');
@@ -508,19 +512,26 @@ $('mf').onchange=async e=>{
 $('mx').onclick=()=>{musicBuf=null;$('mf').value='';refresh();say('Звук убран.')};
 $('vsnd').onchange=refresh;
 function setupAudio(record){
-  const a={dest:null,srcs:[],start(){},stop(){}};
+  const a={dest:null,srcs:[],vo:[],start(){},stop(){}};
   const AC=window.AudioContext||window.webkitAudioContext;
   const vsnd=$('vsnd').checked&&bgVideo,hasMusic=!!musicBuf;
-  if(!AC||(!vsnd&&!hasMusic))return a;
+  const vo=[];let acc=0;
+  segs.forEach((g,i)=>{
+    const first=i===0||g.g==null||segs[i-1].g!==g.g,k=g.sid+':'+g.an;
+    if(first&&g.sid&&VO[k])vo.push({buf:VO[k],when:acc});
+    acc+=g.dur;
+  });
+  if(!AC||(!vsnd&&!hasMusic&&!vo.length))return a;
   if(!actx)actx=new AC();
   if(actx.state==='suspended')actx.resume();
   const out=record?actx.createMediaStreamDestination():actx.destination;
   if(record)a.dest=out;
   const nodes=[];
   if(hasMusic){const s=actx.createBufferSource();s.buffer=musicBuf;s.loop=true;const g=actx.createGain();g.gain.value=Number($('mv').value);s.connect(g);g.connect(out);nodes.push(g);a.srcs.push(s)}
+  vo.forEach(v=>{const s=actx.createBufferSource();s.buffer=v.buf;const g=actx.createGain();g.gain.value=Number($('vv').value);s.connect(g);g.connect(out);nodes.push(g);a.vo.push({s,when:v.when})});
   if(vsnd){if(!bgEl._mes){bgEl.muted=false;bgEl._mes=actx.createMediaElementSource(bgEl)}bgEl._mes.connect(out);nodes.push(bgEl._mes)}
-  a.start=()=>a.srcs.forEach(s=>s.start(0));
-  a.stop=()=>{a.srcs.forEach(s=>{try{s.stop()}catch(e){}});nodes.forEach(n=>{try{n.disconnect()}catch(e){}})};
+  a.start=()=>{a.srcs.forEach(s=>s.start(0));a.vo.forEach(v=>v.s.start(actx.currentTime+v.when))};
+  a.stop=()=>{a.srcs.forEach(s=>{try{s.stop()}catch(e){}});a.vo.forEach(v=>{try{v.s.stop()}catch(e){}});nodes.forEach(n=>{try{n.disconnect()}catch(e){}})};
   return a;
 }
 const mixStream=a=>{const s=cv.captureStream(30);if(a.dest)a.dest.stream.getAudioTracks().forEach(t=>s.addTrack(t));return s};
@@ -619,7 +630,7 @@ $('qadd').onclick=async()=>{
     let t=x.text.trim();
     if(n===1&&sid!==1&&sid!==9){const p=t.split(/\s+/);if(p.length>4&&p[0].replace(/[\u064B-\u065F\u0670\u0640]/g,'').startsWith('بسم'))t=p.slice(4).join(' ')}
     const w=t.split(/\s+/).length;
-    segs.push({text:t,tr:y?y.text.replace(/<[^>]*>/g,'').trim():'',dur:Math.min(25,Math.max(4,Math.ceil(w*0.6)+2)),n:String(n),fit:w<=7,g:++gc});
+    segs.push({text:t,tr:y?y.text.replace(/<[^>]*>/g,'').trim():'',dur:Math.min(25,Math.max(4,Math.ceil(w*0.6)+2)),n:String(n),fit:w<=7,g:++gc,sid,an:n});
     added++;
   }
   sel=Math.max(0,segs.length-added);refresh();
@@ -677,6 +688,39 @@ function moveBound(t){
   const k=rng.findIndex(o=>o.j===si);
   segs.splice(lo,hi-lo+1,...ns);sel=lo+Math.max(0,k);refresh();
 }
+
+/* голос чтеца в ролике */
+$('vgo').onclick=async()=>{
+  const items=[];let i=0;
+  while(i<segs.length){const [lo,hi]=grp(i);if(segs[lo].sid&&segs[lo].an)items.push([lo,hi]);i=hi+1}
+  if(!items.length){note('vn','Голос доступен только для аятов, добавленных из Корана. Добавь их заново во вкладке «Коран».');return}
+  const AC=window.AudioContext||window.webkitAudioContext;
+  if(!AC){note('vn','Этот браузер не поддерживает звук.');return}
+  if(!actx)actx=new AC();
+  const rec=localStorage.getItem('ayat-reciter')||'ar.alafasy';
+  VO={};VOREC=rec;$('vgo').disabled=true;
+  let ok=0;
+  for(const [lo,hi] of items){
+    note('vn','Загружаю голос: '+(ok+1)+' из '+items.length+'...');
+    const key=segs[lo].sid+':'+segs[lo].an;
+    try{
+      if(!VO[key]){
+        const j=await (await fetch('https://api.alquran.cloud/v1/ayah/'+key+'/'+rec)).json();
+        const ab=await (await fetch(j.data.audio)).arrayBuffer();
+        VO[key]=await new Promise((res,no)=>{const p=actx.decodeAudioData(ab,res,no);if(p&&p.catch)p.catch(no)});
+      }
+      const buf=VO[key],old=segs.slice(lo,hi+1).reduce((a,x)=>a+x.dur,0),nt=buf.duration+0.8;
+      for(let k=lo;k<=hi;k++)segs[k].dur=Math.max(1,Math.round(nt*segs[k].dur/old*10)/10);
+      ok++;
+    }catch(e){
+      note('vn','Не удалось загрузить голос ('+((e&&e.message)||'ошибка')+'). Возможно, сайт с записями не разрешает загрузку.');
+      $('vgo').disabled=false;VO={};refresh();return;
+    }
+  }
+  $('vgo').disabled=false;refresh();
+  note('vn','Голос чтеца добавлен, аятов: '+ok+'. Длина ролика '+Math.round(total())+' с. Нажми «Смотреть» или «Записать ролик».');
+};
+$('vno').onclick=()=>{VO={};VOREC='';refresh();note('vn','Голос убран. Длительности кадров остались, их можно поменять.')};
 
 /* вкладки и дизайн */
 const TABS=['home','quran','page','read','create','audio','profile'];
@@ -828,7 +872,7 @@ $('rmake').onclick=()=>{
   ns.forEach(n=>{
     const x=RS.A.find(z=>z.numberInSurah===n),y=RS.T.find(z=>z.numberInSurah===n);
     const t=cleanA(x.text,RS.id,n),w=t.split(/\s+/).length;
-    segs.push({text:t,tr:y?y.text.replace(/<[^>]*>/g,'').trim():'',dur:Math.min(25,Math.max(4,Math.ceil(w*0.6)+2)),n:String(n),fit:w<=7});
+    segs.push({text:t,tr:y?y.text.replace(/<[^>]*>/g,'').trim():'',dur:Math.min(25,Math.max(4,Math.ceil(w*0.6)+2)),n:String(n),fit:w<=7,g:++gc,sid:RS.id,an:n});
   });
   sel=segs.length-ns.length;go('create');
 };
