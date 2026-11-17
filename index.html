@@ -77,7 +77,7 @@ input[type=range],input[type=checkbox]{accent-color:var(--ac)}
 <body>
 <div class="wrap">
 <h1>Ролики с аятами</h1>
-<div class="note" style="margin:-6px 0 10px">Версия 11: голос чтеца в ролике</div>
+<div class="note" style="margin:-6px 0 10px">Версия 12: исправлена загрузка голоса</div>
 <section id="t-create" class="tab" hidden>
 
 <div class="card">
@@ -239,6 +239,7 @@ let segs=[],sel=0,editing=-1,bgEl=null,bgVideo=false,bgName='',bgColor='#10241b'
 let customFont=false,ff0=null,preset='',musicBuf=null,musicName='',actx=null,playing=false,lastBlob=null,ext='webm',boxes=[],dragK=null,off=null;
 let pos={...POS0},tscale=1,gc=Date.now(),VO={},VOREC='';
 
+const hs=u=>String(u).replace(/^http:/,'https:');
 const say=t=>{$('st').textContent=t};
 const note=(id,t)=>{const n=$(id);if(n)n.textContent=t;say(t)};
 const fam=()=>(customFont?'"UserFont",':'')+(preset?'"'+preset+'",':'')+DEF;
@@ -690,6 +691,19 @@ function moveBound(t){
 }
 
 /* голос чтеца в ролике */
+async function getAudioBuf(url){
+  url=hs(url);
+  const c=[url];
+  if(url.includes('cdn.islamic.network'))c.push(url.replace('cdn.islamic.network','cdn.islamic.ru'));
+  c.push('https://api.allorigins.win/raw?url='+encodeURIComponent(url));
+  c.push('https://corsproxy.io/?url='+encodeURIComponent(url));
+  let err=new Error('нет связи');
+  for(const u of c){
+    try{const r=await fetch(u);if(!r.ok)throw new Error('HTTP '+r.status);return await r.arrayBuffer()}
+    catch(e){err=e}
+  }
+  throw err;
+}
 $('vgo').onclick=async()=>{
   const items=[];let i=0;
   while(i<segs.length){const [lo,hi]=grp(i);if(segs[lo].sid&&segs[lo].an)items.push([lo,hi]);i=hi+1}
@@ -703,17 +717,20 @@ $('vgo').onclick=async()=>{
   for(const [lo,hi] of items){
     note('vn','Загружаю голос: '+(ok+1)+' из '+items.length+'...');
     const key=segs[lo].sid+':'+segs[lo].an;
+    let stage='список записей';
     try{
       if(!VO[key]){
         const j=await (await fetch('https://api.alquran.cloud/v1/ayah/'+key+'/'+rec)).json();
-        const ab=await (await fetch(j.data.audio)).arrayBuffer();
+        stage='файл записи';
+        const ab=await getAudioBuf(j.data.audio);
+        stage='расшифровка звука';
         VO[key]=await new Promise((res,no)=>{const p=actx.decodeAudioData(ab,res,no);if(p&&p.catch)p.catch(no)});
       }
       const buf=VO[key],old=segs.slice(lo,hi+1).reduce((a,x)=>a+x.dur,0),nt=buf.duration+0.8;
       for(let k=lo;k<=hi;k++)segs[k].dur=Math.max(1,Math.round(nt*segs[k].dur/old*10)/10);
       ok++;
     }catch(e){
-      note('vn','Не удалось загрузить голос ('+((e&&e.message)||'ошибка')+'). Возможно, сайт с записями не разрешает загрузку.');
+      note('vn','Не удалось: '+stage+' ('+((e&&e.message)||'ошибка')+'). Если повторится, пришли мне эту строку.');
       $('vgo').disabled=false;VO={};refresh();return;
     }
   }
@@ -779,7 +796,7 @@ function drawRl(){
       try{
         if(pa)pa.pause();
         const j=await (await fetch('https://api.alquran.cloud/v1/ayah/1/'+x.identifier)).json();
-        pa=new Audio(j.data.audio);await pa.play();
+        pa=new Audio(hs(j.data.audio));await pa.play();
       }catch(e){say('Не удалось проиграть.')}
     });
     const pick=btn(x.identifier===cur?'Выбран':'Выбрать',()=>{try{localStorage.setItem('ayat-reciter',x.identifier)}catch(e){}drawRl()});
@@ -849,7 +866,7 @@ function drawRead(){
     const tr=document.createElement('div');tr.className='note';tr.style.margin='2px 0 8px';tr.textContent=y?y.text.replace(/<[^>]*>/g,'').trim():'';
     const f=document.createElement('div');f.className='row';
     const nn=document.createElement('span');nn.className='ct';nn.textContent='Аят '+n;f.appendChild(nn);
-    if(u)f.appendChild(btn('Слушать',e=>{e.stopPropagation();stopAudio();ra=new Audio(u.audio);ra.play().catch(()=>{})}));
+    if(u)f.appendChild(btn('Слушать',e=>{e.stopPropagation();stopAudio();ra=new Audio(hs(u.audio));ra.play().catch(()=>{})}));
     d.append(ar,tr,f);
     d.onclick=()=>{if(rsel.has(n))rsel.delete(n);else rsel.add(n);d.classList.toggle('on',rsel.has(n))};
     box.appendChild(d);
@@ -860,7 +877,7 @@ $('rall').onclick=()=>{if(!RS)return;if(rsel.size===RS.A.length)rsel=new Set();e
 $('rplay').onclick=()=>{
   if(!RS||!RS.U.length)return;
   if(ra){stopAudio();return}
-  const q=RS.U.map(u=>u.audio);let k=0;
+  const q=RS.U.map(u=>hs(u.audio));let k=0;
   $('rplay').textContent='Остановить';
   const next=()=>{if(k>=q.length){stopAudio();return}ra=new Audio(q[k++]);ra.onended=next;ra.play().catch(()=>stopAudio())};
   next();
@@ -900,7 +917,7 @@ async function autoRu(en){
   if(t){c[en]=t;try{localStorage.setItem('ayat-auto',JSON.stringify(c))}catch(e){}}
   return t;
 }
-const wAudio=(u,sid,n,i)=>u?(u.startsWith('http')?u:'https://cdn.islamic.app'+(u.startsWith('/')?'':'/')+u):'https://cdn.islamic.app/quran/audio-word/'+sid+'/'+n+'/'+(i+1)+'.mp3';
+const wAudio=(u,sid,n,i)=>u?(u.startsWith('http')?hs(u):'https://cdn.islamic.app'+(u.startsWith('/')?'':'/')+u):'https://cdn.islamic.app/quran/audio-word/'+sid+'/'+n+'/'+(i+1)+'.mp3';
 $('wp').onclick=e=>{if(e.target===$('wp'))$('wp').hidden=true};
 async function ruWord(en){
   en=en.replace(/[()]/g,'').replace(/\s+/g,' ').trim();if(!en)return '';
@@ -929,7 +946,7 @@ async function showWord(sid,n,i,cnt,tok){
   const row=mk('div','display:flex;gap:8px;flex-wrap:wrap');
   row.append(
     btn('Слушать слово',()=>{stopAudio();ra=new Audio(wAudio(w&&w.au,sid,n,i));ra.play().catch(()=>{})}),
-    btn('Весь аят',async()=>{try{const rec=localStorage.getItem('ayat-reciter')||'ar.alafasy';const j=await (await fetch('https://api.alquran.cloud/v1/ayah/'+sid+':'+n+'/'+rec)).json();stopAudio();ra=new Audio(j.data.audio);ra.play().catch(()=>{})}catch(e){}}),
+    btn('Весь аят',async()=>{try{const rec=localStorage.getItem('ayat-reciter')||'ar.alafasy';const j=await (await fetch('https://api.alquran.cloud/v1/ayah/'+sid+':'+n+'/'+rec)).json();stopAudio();ra=new Audio(hs(j.data.audio));ra.play().catch(()=>{})}catch(e){}}),
     btn('Переводы аята',async()=>{tr.textContent='Загружаю...';try{const j=await (await fetch('https://api.alquran.cloud/v1/ayah/'+sid+':'+n+'/'+$('trn').value)).json();tr.textContent=j.data.text.replace(/<[^>]*>/g,'').trim()}catch(e){tr.textContent='Перевод не загрузился.'}}),
     btn('Закрыть',()=>{wp.hidden=true}));
   c.append(row,tr);
