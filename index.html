@@ -77,7 +77,7 @@ input[type=range],input[type=checkbox]{accent-color:var(--ac)}
 <body>
 <div class="wrap">
 <h1>Ролики с аятами</h1>
-<div class="note" style="margin:-6px 0 10px">Версия 12: исправлена загрузка голоса</div>
+<div class="note" style="margin:-6px 0 10px">Версия 13: голос чтеца из нескольких источников</div>
 <section id="t-create" class="tab" hidden>
 
 <div class="card">
@@ -691,18 +691,31 @@ function moveBound(t){
 }
 
 /* голос чтеца в ролике */
-async function getAudioBuf(url){
-  url=hs(url);
-  const c=[url];
-  if(url.includes('cdn.islamic.network'))c.push(url.replace('cdn.islamic.network','cdn.islamic.ru'));
-  c.push('https://api.allorigins.win/raw?url='+encodeURIComponent(url));
-  c.push('https://corsproxy.io/?url='+encodeURIComponent(url));
-  let err=new Error('нет связи');
-  for(const u of c){
-    try{const r=await fetch(u);if(!r.ok)throw new Error('HTTP '+r.status);return await r.arrayBuffer()}
-    catch(e){err=e}
+const EVF={'ar.alafasy':'Alafasy_128kbps','ar.shaatree':'Abu_Bakr_Ash-Shaatree_128kbps','ar.husary':'Husary_128kbps','ar.minshawi':'Minshawy_Murattal_128kbps','ar.abdulbasitmurattal':'Abdul_Basit_Murattal_192kbps','ar.mahermuaiqly':'MaherAlMuaiqly128kbps','ar.saoodshuraym':'Saood_ash-Shuraym_128kbps','ar.hudhaify':'Hudhaify_128kbps','ar.ahmedajamy':'Ahmed_ibn_Ali_al-Ajamy_128kbps_ketaballah.net'};
+let AUD_OK='',AUDLOG=[];
+function audioCands(sid,an,rec,apiUrl){
+  const p=String(sid).padStart(3,'0')+String(an).padStart(3,'0'),a=hs(apiUrl),c=[];
+  if(EVF[rec])c.push('https://everyayah.com/data/'+EVF[rec]+'/'+p+'.mp3');
+  c.push(a);
+  if(a.includes('cdn.islamic.network'))c.push(a.replace('cdn.islamic.network','cdn.islamic.ru'));
+  if(rec==='ar.alafasy')c.push('https://verses.quran.com/Alafasy/mp3/'+p+'.mp3');
+  return c;
+}
+async function fetchTry(u){
+  const ac=new AbortController(),t=setTimeout(()=>ac.abort(),12000);
+  try{const r=await fetch(u,{signal:ac.signal});if(!r.ok)throw new Error('HTTP '+r.status);return await r.arrayBuffer()}
+  finally{clearTimeout(t)}
+}
+async function getAudioBuf(c){
+  const px=[u=>u,u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u),u=>'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(u)];
+  let list=[];
+  c.forEach(u=>px.forEach((f,k)=>list.push({u:f(u),h:new URL(u).hostname+(k?' (прокси '+k+')':'')})));
+  list.sort((x,y)=>(y.h===AUD_OK)-(x.h===AUD_OK));
+  for(const it of list){
+    try{const ab=await fetchTry(it.u);AUD_OK=it.h;return ab}
+    catch(e){AUDLOG.push(it.h+': '+((e&&e.name==='AbortError')?'долго':(e&&e.message)||'ошибка'))}
   }
-  throw err;
+  throw new Error('ни один источник не ответил');
 }
 $('vgo').onclick=async()=>{
   const items=[];let i=0;
@@ -722,7 +735,8 @@ $('vgo').onclick=async()=>{
       if(!VO[key]){
         const j=await (await fetch('https://api.alquran.cloud/v1/ayah/'+key+'/'+rec)).json();
         stage='файл записи';
-        const ab=await getAudioBuf(j.data.audio);
+        AUDLOG=[];
+        const ab=await getAudioBuf(audioCands(segs[lo].sid,segs[lo].an,rec,j.data.audio));
         stage='расшифровка звука';
         VO[key]=await new Promise((res,no)=>{const p=actx.decodeAudioData(ab,res,no);if(p&&p.catch)p.catch(no)});
       }
@@ -730,7 +744,7 @@ $('vgo').onclick=async()=>{
       for(let k=lo;k<=hi;k++)segs[k].dur=Math.max(1,Math.round(nt*segs[k].dur/old*10)/10);
       ok++;
     }catch(e){
-      note('vn','Не удалось: '+stage+' ('+((e&&e.message)||'ошибка')+'). Если повторится, пришли мне эту строку.');
+      note('vn','Не удалось: '+stage+'. '+(AUDLOG.length?AUDLOG.join('; '):((e&&e.message)||'ошибка'))+'. Пришли мне эту строку. Запасной путь: скачай запись аята из интернета и добавь как «Фоновый звук».');
       $('vgo').disabled=false;VO={};refresh();return;
     }
   }
