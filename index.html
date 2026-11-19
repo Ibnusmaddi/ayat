@@ -71,13 +71,25 @@ input[type=range],input[type=checkbox]{accent-color:var(--ac)}
 .vid video{width:100%;border-radius:10px;margin:6px 0}
 .w{cursor:pointer;border-radius:8px;padding:0 2px}.w:active{background:var(--bl)}
 #t-page .card{padding:8px}
+#t-page.light .card{background:#fbf8ef;color:#161616;border:2px solid #b9a56a}
+#t-page.light .note,#t-page.light #pgmeta{color:#6b5d36}
+#t-page.light .btn{background:#8a6d1e;border-color:#8a6d1e;color:#fff}
+#t-page.light .btn.ghost{background:transparent;color:#3a3320;border-color:#b9a56a}
+#t-page.light .ayn{border-color:#8a6d1e;color:#5a4410}
+#t-page.light select,#t-page.light input{background:#fff;color:#161616;border-color:#b9a56a}
+#t-page.light .w:active{background:#efe4bd}
+#t-page.light #pgtrb{border-top-color:#b9a56a}
+.sbn{display:flex;align-items:center;justify-content:space-between;margin:14px 0 8px;padding:10px 14px;border-radius:10px;background:linear-gradient(135deg,#0b5d34,#13873f);border:3px double #d8b455;color:#fff;direction:rtl}
+.sbn b{font-size:26px;font-weight:400}
+.sbn span{font-size:13px;background:#0d7a3c;border:1px solid #d8b455;border-radius:20px;padding:2px 10px}
+.pgnum{text-align:center;margin-top:10px;font-size:22px;letter-spacing:2px}
 .ayn{display:inline-flex;align-items:center;justify-content:center;min-width:1.6em;height:1.6em;border:1.5px solid var(--ac);border-radius:50%;font-size:.55em;margin:0 .3em;direction:ltr;color:var(--ac);vertical-align:middle}
 </style>
 </head>
 <body>
 <div class="wrap">
 <h1>Ролики с аятами</h1>
-<div class="note" style="margin:-6px 0 10px">Версия 13: голос чтеца из нескольких источников</div>
+<div class="note" style="margin:-6px 0 10px">Версия 15: стили мусхафа и таджвид</div>
 <section id="t-create" class="tab" hidden>
 
 <div class="card">
@@ -177,6 +189,8 @@ input[type=range],input[type=checkbox]{accent-color:var(--ac)}
 <div class="row" style="margin:12px 0 8px"><button class="btn sm" id="vgo">Озвучить голосом чтеца</button><button class="btn ghost sm" id="vno">Убрать голос</button></div>
 <label for="vv">Громкость голоса чтеца</label>
 <input type="range" id="vv" min="0" max="1" step="0.05" value="1">
+<label for="vp">Пауза после аята: <span id="vpv">0.1</span> с (чтобы применить, нажми «Озвучить голосом чтеца» ещё раз)</label>
+<input type="range" id="vp" min="0" max="1.5" step="0.05" value="0.1">
 <div class="note" id="vn">Чтеца выбери во вкладке «Чтецы». Работает для аятов, добавленных из Корана, нужен интернет.</div>
 <label class="chk"><input type="checkbox" id="vsnd">Взять звук из фона-видео</label>
 </div>
@@ -197,9 +211,18 @@ input[type=range],input[type=checkbox]{accent-color:var(--ac)}
 
 <section id="t-page" class="tab" hidden>
 <div class="card">
-<div class="row" style="justify-content:space-between"><button class="btn ghost sm" id="pgback">К сурам</button><button class="btn sm" id="pgtr">Перевести страницу</button><button class="btn ghost sm" id="pgm">A-</button><button class="btn ghost sm" id="pgp">A+</button></div>
+<div class="row" style="justify-content:space-between"><button class="btn ghost sm" id="pgback">К сурам</button><button class="btn sm" id="pgtr">Перевести страницу</button><button class="btn ghost sm" id="pgm">A-</button><button class="btn ghost sm" id="pgp">A+</button><button class="btn ghost sm" id="pgv">Вид</button></div>
+<div id="pgset" hidden style="margin-top:10px">
+<label for="pst">Стиль страницы</label>
+<select id="pst"><option value="madani">Мединский мусхаф (светлая страница)</option><option value="dark">Тёмный</option></select>
+<label class="chk"><input type="checkbox" id="ptj">Коран с правилами таджвида (цветные буквы)</label>
+<label for="pfn">Шрифт</label>
+<select id="pfn"><option value="">Как в настройках приложения</option><option>Amiri Quran</option><option>Scheherazade New</option><option>Noto Naskh Arabic</option><option>Reem Kufi</option><option>Cairo</option></select>
+<div id="ptlg" class="note" hidden><span style="color:#d0236a">Мадд 6</span>, <span style="color:#e8820c">мадд 2/4/6</span>, <span style="color:#2a7de1">калькаля</span>, <span style="color:#2e9d4a">ихфа, гунна, икляб</span>, <span style="color:#8a8a8a">идгам и непроизносимые буквы</span></div>
+</div>
 <div id="pgmeta" class="note" style="text-align:center;margin:10px 0 4px"></div>
 <div id="pgbody"></div>
+<div class="pgnum" id="pgnum"></div>
 <div id="pgtrb" hidden style="margin-top:12px;border-top:1px solid var(--bd);padding-top:10px"></div>
 <div class="row" style="margin-top:10px"><button class="btn ghost sm" id="pglist">Выбрать аяты для видео</button></div>
 <div class="row" style="justify-content:space-between;margin-top:12px"><button class="btn ghost sm" id="pgnext">Следующая</button><div style="text-align:center"><span id="pginfo" class="note"></span><br><input type="number" id="pgn" min="1" max="604" style="width:90px;margin:4px 4px 0 0"><button class="btn ghost sm" id="pggo">Перейти</button></div><button class="btn ghost sm" id="pgprev">Предыдущая</button></div>
@@ -237,7 +260,7 @@ const TYPES=['video/mp4;codecs=avc1,mp4a.40.2','video/mp4;codecs=avc1','video/mp
 const POS0={ax:.5,ay:.42,tx:.5,ty:.7};
 let segs=[],sel=0,editing=-1,bgEl=null,bgVideo=false,bgName='',bgColor='#10241b',dim=.35,fsize=64,tcolor='#ffffff';
 let customFont=false,ff0=null,preset='',musicBuf=null,musicName='',actx=null,playing=false,lastBlob=null,ext='webm',boxes=[],dragK=null,off=null;
-let pos={...POS0},tscale=1,gc=Date.now(),VO={},VOREC='';
+let pos={...POS0},tscale=1,gc=Date.now(),VO={},VOREC='',VOT={};
 
 const hs=u=>String(u).replace(/^http:/,'https:');
 const say=t=>{$('st').textContent=t};
@@ -519,7 +542,7 @@ function setupAudio(record){
   const vo=[];let acc=0;
   segs.forEach((g,i)=>{
     const first=i===0||g.g==null||segs[i-1].g!==g.g,k=g.sid+':'+g.an;
-    if(first&&g.sid&&VO[k])vo.push({buf:VO[k],when:acc});
+    if(first&&g.sid&&VO[k])vo.push({buf:VO[k],when:acc,off:VOT[k]||0});
     acc+=g.dur;
   });
   if(!AC||(!vsnd&&!hasMusic&&!vo.length))return a;
@@ -529,9 +552,9 @@ function setupAudio(record){
   if(record)a.dest=out;
   const nodes=[];
   if(hasMusic){const s=actx.createBufferSource();s.buffer=musicBuf;s.loop=true;const g=actx.createGain();g.gain.value=Number($('mv').value);s.connect(g);g.connect(out);nodes.push(g);a.srcs.push(s)}
-  vo.forEach(v=>{const s=actx.createBufferSource();s.buffer=v.buf;const g=actx.createGain();g.gain.value=Number($('vv').value);s.connect(g);g.connect(out);nodes.push(g);a.vo.push({s,when:v.when})});
+  vo.forEach(v=>{const s=actx.createBufferSource();s.buffer=v.buf;const g=actx.createGain();g.gain.value=Number($('vv').value);s.connect(g);g.connect(out);nodes.push(g);a.vo.push({s,when:v.when,off:v.off})});
   if(vsnd){if(!bgEl._mes){bgEl.muted=false;bgEl._mes=actx.createMediaElementSource(bgEl)}bgEl._mes.connect(out);nodes.push(bgEl._mes)}
-  a.start=()=>{a.srcs.forEach(s=>s.start(0));a.vo.forEach(v=>v.s.start(actx.currentTime+v.when))};
+  a.start=()=>{a.srcs.forEach(s=>s.start(0));a.vo.forEach(v=>v.s.start(actx.currentTime+v.when,v.off||0))};
   a.stop=()=>{a.srcs.forEach(s=>{try{s.stop()}catch(e){}});a.vo.forEach(v=>{try{v.s.stop()}catch(e){}});nodes.forEach(n=>{try{n.disconnect()}catch(e){}})};
   return a;
 }
@@ -576,7 +599,7 @@ function play(record){
     }
     let acc=0,i=0;
     while(i<segs.length-1&&t>=acc+segs[i].dur){acc+=segs[i].dur;i++}
-    const lt=t-acc,d=segs[i].dur,f=Math.min(0.4,d/3);
+    const lt=t-acc,d=segs[i].dur,f=Math.min(0.2,d/3);
     draw(segs[i],Math.max(0,Math.min(1,lt/f,(d-lt)/f)),false);
     ph.style.left=(t*PX)+'px';
     requestAnimationFrame(tick);
@@ -692,6 +715,13 @@ function moveBound(t){
 
 /* голос чтеца в ролике */
 const EVF={'ar.alafasy':'Alafasy_128kbps','ar.shaatree':'Abu_Bakr_Ash-Shaatree_128kbps','ar.husary':'Husary_128kbps','ar.minshawi':'Minshawy_Murattal_128kbps','ar.abdulbasitmurattal':'Abdul_Basit_Murattal_192kbps','ar.mahermuaiqly':'MaherAlMuaiqly128kbps','ar.saoodshuraym':'Saood_ash-Shuraym_128kbps','ar.hudhaify':'Hudhaify_128kbps','ar.ahmedajamy':'Ahmed_ibn_Ali_al-Ajamy_128kbps_ketaballah.net'};
+function trimInfo(buf){
+  const d=buf.getChannelData(0),sr=buf.sampleRate,th=0.015;
+  let a=0,b=d.length-1;
+  while(a<b&&Math.abs(d[a])<th)a++;
+  while(b>a&&Math.abs(d[b])<th)b--;
+  return[Math.max(0,a/sr-0.05),Math.min(buf.duration,b/sr+0.08)];
+}
 let AUD_OK='',AUDLOG=[];
 function audioCands(sid,an,rec,apiUrl){
   const p=String(sid).padStart(3,'0')+String(an).padStart(3,'0'),a=hs(apiUrl),c=[];
@@ -725,7 +755,7 @@ $('vgo').onclick=async()=>{
   if(!AC){note('vn','Этот браузер не поддерживает звук.');return}
   if(!actx)actx=new AC();
   const rec=localStorage.getItem('ayat-reciter')||'ar.alafasy';
-  VO={};VOREC=rec;$('vgo').disabled=true;
+  if(VOREC!==rec){VO={};VOT={}}VOREC=rec;$('vgo').disabled=true;
   let ok=0;
   for(const [lo,hi] of items){
     note('vn','Загружаю голос: '+(ok+1)+' из '+items.length+'...');
@@ -740,7 +770,7 @@ $('vgo').onclick=async()=>{
         stage='расшифровка звука';
         VO[key]=await new Promise((res,no)=>{const p=actx.decodeAudioData(ab,res,no);if(p&&p.catch)p.catch(no)});
       }
-      const buf=VO[key],old=segs.slice(lo,hi+1).reduce((a,x)=>a+x.dur,0),nt=buf.duration+0.8;
+      const buf=VO[key],old=segs.slice(lo,hi+1).reduce((a,x)=>a+x.dur,0),tr=trimInfo(buf);VOT[key]=tr[0];const nt=Math.max(0.5,tr[1]-tr[0])+Number($('vp').value);
       for(let k=lo;k<=hi;k++)segs[k].dur=Math.max(1,Math.round(nt*segs[k].dur/old*10)/10);
       ok++;
     }catch(e){
@@ -751,7 +781,8 @@ $('vgo').onclick=async()=>{
   $('vgo').disabled=false;refresh();
   note('vn','Голос чтеца добавлен, аятов: '+ok+'. Длина ролика '+Math.round(total())+' с. Нажми «Смотреть» или «Записать ролик».');
 };
-$('vno').onclick=()=>{VO={};VOREC='';refresh();note('vn','Голос убран. Длительности кадров остались, их можно поменять.')};
+$('vp').oninput=()=>{$('vpv').textContent=$('vp').value};
+$('vno').onclick=()=>{VO={};VOT={};VOREC='';refresh();note('vn','Голос убран. Длительности кадров остались, их можно поменять.')};
 
 /* вкладки и дизайн */
 const TABS=['home','quran','page','read','create','audio','profile'];
@@ -989,30 +1020,59 @@ async function openSurahPage(i){
   try{const j=await (await fetch('https://api.alquran.cloud/v1/ayah/'+i+':1/quran-uthmani')).json();openPage(j.data.page)}
   catch(e){$('pgbody').textContent='Не удалось загрузить. Проверьте интернет.'}
 }
+const TJC={h:'#9a9a9a',s:'#9a9a9a',l:'#9a9a9a',n:'#e8820c',p:'#e8820c',m:'#d0236a',o:'#d0236a',q:'#2a7de1',c:'#2e9d4a',f:'#2e9d4a',w:'#8a8a8a',i:'#2e9d4a',a:'#8a8a8a',u:'#8a8a8a',d:'#8a8a8a',b:'#8a8a8a',g:'#2e9d4a'};
+const stripTj=t=>t.replace(/\[[a-z](?::\d+)?\[([^\]]*)\]/g,'$1');
+const tjHtml=t=>t.replace(/\[([a-z])(?::\d+)?\[([^\]]*)\]/g,(m,c,x)=>'<span style="color:'+(TJC[c]||'inherit')+'">'+x+'</span>');
+let PSET={st:'madani',tj:false,fn:''};
+try{Object.assign(PSET,JSON.parse(localStorage.getItem('ayat-pset')||'{}'))}catch(e){}
+const savePS=()=>{try{localStorage.setItem('ayat-pset',JSON.stringify(PSET))}catch(e){}};
 async function openPage(p){
   PG=Math.max(1,Math.min(604,+p||1));go('page');
-  const box=$('pgbody');box.textContent='Загружаю...';$('pgtrb').hidden=true;try{localStorage.setItem('ayat-lastpage',PG)}catch(e){}$('pginfo').textContent='Страница '+PG+' из 604';$('pgn').value=PG;
-  let ay;
-  try{const j=await (await fetch('https://api.alquran.cloud/v1/page/'+PG+'/quran-uthmani')).json();ay=j.data.ayahs}
-  catch(e){box.textContent='Не удалось загрузить. Проверьте интернет.';return}
+  $('t-page').classList.toggle('light',PSET.st==='madani');
+  const box=$('pgbody');box.textContent='Загружаю...';$('pgtrb').hidden=true;
+  try{localStorage.setItem('ayat-lastpage',PG)}catch(e){}
+  $('pginfo').textContent='Страница '+PG+' из 604';$('pgn').value=PG;$('pgnum').textContent=PG;
+  const get=async ed=>{const j=await (await fetch('https://api.alquran.cloud/v1/page/'+PG+'/'+ed)).json();return j.data.ayahs};
+  let ay=null,tj=!!PSET.tj;
+  try{
+    if(tj){try{ay=await get('quran-tajweed');if(!ay.every(a=>stripTj(a.text).indexOf('[')<0))ay=null}catch(e){ay=null}}
+    if(!ay){tj=false;ay=await get('quran-uthmani')}
+  }catch(e){box.textContent='Не удалось загрузить. Проверьте интернет.';return}
   box.innerHTML='';
   const f=ay[0];PS=f.surah.number;
   $('pgmeta').textContent='СУРА '+f.surah.number+' · '+SN[f.surah.number-1].toUpperCase()+' · ДЖУЗ '+f.juz;
+  const fnt=PSET.fn?'"'+PSET.fn+'",'+DEF:fam();
   let para=null;
   ay.forEach(a=>{
     const sid=a.surah.number,n=a.numberInSurah;
     if(n===1){
-      const h=document.createElement('div');h.style.cssText='text-align:center;font-size:20px;margin:14px 0 6px;color:var(--ac)';h.textContent=a.surah.name+'  ·  '+SN[sid-1];box.appendChild(h);
-      if(sid!==1&&sid!==9){const b=document.createElement('div');b.dir='rtl';b.style.cssText='text-align:center;font-size:26px;line-height:2';b.style.fontFamily=fam();b.textContent='بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ';box.appendChild(b)}
+      const h=document.createElement('div');h.className='sbn';h.style.fontFamily=fnt;
+      h.innerHTML='<span>آياتها '+toAr(a.surah.numberOfAyahs||SC[sid-1])+'</span><b>'+a.surah.name+'</b><span>ترتيبها '+toAr(sid)+'</span>';
+      box.appendChild(h);
+      if(sid!==1&&sid!==9){const b=document.createElement('div');b.dir='rtl';b.style.cssText='text-align:center;font-size:'+(PF+4)+'px;line-height:2';b.style.fontFamily=fnt;b.textContent='بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ';box.appendChild(b)}
       para=null;
     }
-    if(!para){para=document.createElement('div');para.dir='rtl';para.style.cssText='text-align:justify;font-size:'+PF+'px;line-height:2.2';para.style.fontFamily=fam();box.appendChild(para)}
-    const toks=cleanA(a.text,sid,n).split(/\s+/).filter(Boolean);
-    toks.forEach((t,i)=>{const sp=document.createElement('span');sp.className='w';sp.textContent=t;sp.onclick=()=>showWord(sid,n,i,toks.length,t);para.appendChild(sp);para.appendChild(document.createTextNode(' '))});
+    if(!para){para=document.createElement('div');para.dir='rtl';para.style.cssText='text-align:justify;font-size:'+PF+'px;line-height:2.2';para.style.fontFamily=fnt;box.appendChild(para)}
+    let raw=a.text.trim().split(/\s+/).filter(Boolean);
+    if(n===1&&sid!==1&&sid!==9&&raw.length>4&&nk(stripTj(raw[0])).startsWith('بسم'))raw=raw.slice(4);
+    const cnt=raw.length;
+    raw.forEach((t,i)=>{
+      const sp=document.createElement('span');sp.className='w';
+      if(tj)sp.innerHTML=tjHtml(t);else sp.textContent=t;
+      const plain=stripTj(t);sp.onclick=()=>showWord(sid,n,i,cnt,plain);
+      para.appendChild(sp);para.appendChild(document.createTextNode(' '));
+    });
     const m=document.createElement('span');m.className='ayn';m.textContent=toAr(n);para.appendChild(m);para.appendChild(document.createTextNode(' '));
   });
+  $('ptlg').hidden=!tj;
   window.scrollTo(0,0);
 }
+function syncPS(){$('pst').value=PSET.st;$('ptj').checked=!!PSET.tj;$('pfn').value=PSET.fn}
+$('pgv').onclick=()=>{$('pgset').hidden=!$('pgset').hidden};
+$('pst').onchange=()=>{PSET.st=$('pst').value;savePS();openPage(PG)};
+$('ptj').onchange=()=>{PSET.tj=$('ptj').checked;savePS();openPage(PG)};
+$('pfn').onchange=()=>{PSET.fn=$('pfn').value;savePS();openPage(PG)};
+syncPS();
 $('pgprev').onclick=()=>openPage(PG-1);
 $('pgnext').onclick=()=>openPage(PG+1);
 $('pggo').onclick=()=>openPage($('pgn').value);
