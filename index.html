@@ -89,7 +89,7 @@ input[type=range],input[type=checkbox]{accent-color:var(--ac)}
 <body>
 <div class="wrap">
 <h1>Ролики с аятами</h1>
-<div class="note" style="margin:-6px 0 10px">Версия 15: стили мусхафа и таджвид</div>
+<div class="note" style="margin:-6px 0 10px">Версия 16: размер аята, флажки на звуке</div>
 <section id="t-create" class="tab" hidden>
 
 <div class="card">
@@ -194,6 +194,16 @@ input[type=range],input[type=checkbox]{accent-color:var(--ac)}
 <div class="note" id="vn">Чтеца выбери во вкладке «Чтецы». Работает для аятов, добавленных из Корана, нужен интернет.</div>
 <label class="chk"><input type="checkbox" id="vsnd">Взять звук из фона-видео</label>
 </div>
+
+<div class="card">
+<h2>Подгонка текста под звук (флажки)</h2>
+<div class="note" style="margin:0 0 8px">Загрузи свой звук в блоке выше. Слушай и в момент, когда должен появиться очередной кадр (аят или группа слов), нажимай «Поставить флажок». Флажков нужно не меньше, чем кадров. Лишний флажок в конце задаёт конец последнего кадра. Флажки ставишь ты сам, потому что чтецы читают по-разному. Каждый флажок можно послушать и сдвинуть.</div>
+<div class="row"><button class="btn sm" id="fpl">Слушать</button><button class="btn sm" id="ffl">Поставить флажок</button><span id="ftm" class="note" style="margin:0">0.00 / 0.00 с</span></div>
+<input type="range" id="fsk" min="0" max="1" step="0.01" value="0" style="margin-top:8px">
+<div id="fls"></div>
+<div class="row" style="margin-top:8px"><button class="btn sm" id="fap">Подогнать кадры под флажки</button><button class="btn ghost sm" id="fcl">Убрать все флажки</button></div>
+<div class="note" id="fnn"></div>
+</div>
 </section>
 
 <section id="t-home" class="tab">
@@ -260,7 +270,7 @@ const TYPES=['video/mp4;codecs=avc1,mp4a.40.2','video/mp4;codecs=avc1','video/mp
 const POS0={ax:.5,ay:.42,tx:.5,ty:.7};
 let segs=[],sel=0,editing=-1,bgEl=null,bgVideo=false,bgName='',bgColor='#10241b',dim=.35,fsize=64,tcolor='#ffffff';
 let customFont=false,ff0=null,preset='',musicBuf=null,musicName='',actx=null,playing=false,lastBlob=null,ext='webm',boxes=[],dragK=null,off=null;
-let pos={...POS0},tscale=1,gc=Date.now(),VO={},VOREC='',VOT={};
+let pos={...POS0},tscale=1,gc=Date.now(),VO={},VOREC='',VOT={},musicOff=0,LASTFS=0;
 
 const hs=u=>String(u).replace(/^http:/,'https:');
 const say=t=>{$('st').textContent=t};
@@ -355,7 +365,7 @@ function draw(seg,alpha,frames){
       fs=Math.max(14,fsize*Math.min(1,maxW/need));
       ctx.font=fs+'px '+fam();lines=[one];
     }else lines=wrap(seg.text,maxW);
-    block(lines,fs*1.7,pos.ax*W,pos.ay*H,'a',mk,fs);
+    LASTFS=fs;block(lines,fs*1.7,pos.ax*W,pos.ay*H,'a',mk,fs);
   }
   if(seg.tr){ctx.direction='ltr';ctx.font=ts+'px system-ui,sans-serif';block(wrap(seg.tr,maxW),ts*1.4,pos.tx*W,pos.ty*H,'t')}
   ctx.restore();
@@ -378,6 +388,7 @@ cv.addEventListener('pointerdown',e=>{
     const [a,b]=[...ptr.values()],m={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
     const h=hit(m),k=h?h.k:(dragK||'a');
     dragK=null;
+    if(k==='a'){const g=segs[sel];if(g&&g.fit)g.fit=false;if(LASTFS)fsize=Math.round(LASTFS);$('fs').value=Math.min(200,fsize)}
     pinch={k,d0:Math.hypot(a.x-b.x,a.y-b.y)||1,base:k==='a'?fsize:tscale};
     return;
   }
@@ -493,7 +504,7 @@ $('bgf').onchange=async e=>{
 $('bgx').onclick=()=>{bgEl=null;bgVideo=false;bgName='';refresh()};
 $('bgc').oninput=e=>{bgColor=e.target.value;refresh()};
 $('dim').oninput=e=>{dim=Number(e.target.value);refresh()};
-$('fs').oninput=e=>{fsize=Number(e.target.value);refresh()};
+$('fs').oninput=e=>{fsize=Number(e.target.value);const g=segs[sel];if(g&&g.fit)g.fit=false;refresh()};
 $('tc').oninput=e=>{tcolor=e.target.value;refresh()};
 
 /* шрифт */
@@ -530,10 +541,10 @@ $('mf').onchange=async e=>{
     if(!actx)actx=new AC();
     const ab=await f.arrayBuffer();
     musicBuf=await new Promise((ok,no)=>{const p=actx.decodeAudioData(ab,ok,no);if(p&&p.catch)p.catch(no)});
-    musicName=f.name;refresh();note('mfn','Звук подключён: '+f.name+', '+Math.round(musicBuf.duration)+' с.');
+    musicName=f.name;FL=[];musicOff=0;mstop();mp.off=0;refresh();drawFl();fui();note('mfn','Звук подключён: '+f.name+', '+Math.round(musicBuf.duration)+' с.');
   }catch(x){musicBuf=null;note('mfn','Звук не открылся ('+((x&&x.message)||'ошибка формата')+'). Попробуйте mp3 или m4a.')}
 };
-$('mx').onclick=()=>{musicBuf=null;$('mf').value='';refresh();say('Звук убран.')};
+$('mx').onclick=()=>{musicBuf=null;$('mf').value='';FL=[];musicOff=0;mstop();drawFl();refresh();say('Звук убран.')};
 $('vsnd').onchange=refresh;
 function setupAudio(record){
   const a={dest:null,srcs:[],vo:[],start(){},stop(){}};
@@ -554,7 +565,7 @@ function setupAudio(record){
   if(hasMusic){const s=actx.createBufferSource();s.buffer=musicBuf;s.loop=true;const g=actx.createGain();g.gain.value=Number($('mv').value);s.connect(g);g.connect(out);nodes.push(g);a.srcs.push(s)}
   vo.forEach(v=>{const s=actx.createBufferSource();s.buffer=v.buf;const g=actx.createGain();g.gain.value=Number($('vv').value);s.connect(g);g.connect(out);nodes.push(g);a.vo.push({s,when:v.when,off:v.off})});
   if(vsnd){if(!bgEl._mes){bgEl.muted=false;bgEl._mes=actx.createMediaElementSource(bgEl)}bgEl._mes.connect(out);nodes.push(bgEl._mes)}
-  a.start=()=>{a.srcs.forEach(s=>s.start(0));a.vo.forEach(v=>v.s.start(actx.currentTime+v.when,v.off||0))};
+  a.start=()=>{a.srcs.forEach(s=>s.start(0,musicOff));a.vo.forEach(v=>v.s.start(actx.currentTime+v.when,v.off||0))};
   a.stop=()=>{a.srcs.forEach(s=>{try{s.stop()}catch(e){}});a.vo.forEach(v=>{try{v.s.stop()}catch(e){}});nodes.forEach(n=>{try{n.disconnect()}catch(e){}})};
   return a;
 }
@@ -563,6 +574,7 @@ const mixStream=a=>{const s=cv.captureStream(30);if(a.dest)a.dest.stream.getAudi
 /* просмотр и запись */
 function busy(b){['pv','rc','add'].forEach(id=>$(id).disabled=b)}
 function play(record){
+  mstop();
   if(playing)return;
   if(!segs.length){say('Сначала добавьте хотя бы один аят.');return}
   let r=null;const chunks=[];
@@ -712,6 +724,65 @@ function moveBound(t){
   const k=rng.findIndex(o=>o.j===si);
   segs.splice(lo,hi-lo+1,...ns);sel=lo+Math.max(0,k);refresh();
 }
+
+/* флажки на звуке */
+let FL=[],mp={src:null,t0:0,off:0,on:false},fdrag=false;
+const mdur=()=>musicBuf?musicBuf.duration:0;
+const mpos=()=>mp.on?Math.min(mdur(),mp.off+(actx.currentTime-mp.t0)):mp.off;
+function fui(){
+  const d=mdur();$('fsk').max=d||1;if(!fdrag)$('fsk').value=mpos();
+  $('ftm').textContent=mpos().toFixed(2)+' / '+d.toFixed(2)+' с';
+}
+function mstop(){
+  if(mp.src){mp.off=mpos();try{mp.src.onended=null;mp.src.stop()}catch(e){}mp.src=null}
+  mp.on=false;$('fpl').textContent='Слушать';
+}
+function mplay(from){
+  if(!musicBuf||!actx)return;
+  mstop();
+  if(actx.state==='suspended')actx.resume();
+  const s=actx.createBufferSource();s.buffer=musicBuf;
+  const g=actx.createGain();g.gain.value=Number($('mv').value);s.connect(g);g.connect(actx.destination);
+  mp.off=Math.max(0,Math.min(from,mdur()-0.05));mp.t0=actx.currentTime;mp.src=s;mp.on=true;
+  s.onended=()=>{if(mp.src===s){mp.src=null;mp.on=false;mp.off=0;$('fpl').textContent='Слушать';fui()}};
+  s.start(0,mp.off);$('fpl').textContent='Пауза';
+}
+setInterval(()=>{if(mp.on)fui()},100);
+$('fpl').onclick=()=>{if(!musicBuf){note('fnn','Сначала загрузи свой звук выше.');return}if(mp.on)mstop();else mplay(mp.off)};
+$('fsk').oninput=e=>{fdrag=true;const v=+e.target.value;if(mp.on)mplay(v);else mp.off=v;fui()};
+$('fsk').onchange=()=>{fdrag=false};
+const fch=()=>{FL.sort((a,b)=>a-b);drawFl()};
+$('ffl').onclick=()=>{
+  if(!musicBuf){note('fnn','Сначала загрузи свой звук выше.');return}
+  FL.push(+mpos().toFixed(2));fch();
+};
+function drawFl(){
+  const box=$('fls');box.innerHTML='';
+  FL.forEach((t,i)=>{
+    const r=document.createElement('div');r.className='srow';r.style.display='block';
+    const h=document.createElement('div');h.style.cssText='margin:0 0 6px';
+    h.textContent=(i+1)+'. '+t.toFixed(2)+' с, '+(segs[i]?'начало кадра: '+segs[i].text.slice(0,24):'конец последнего кадра');
+    const row=document.createElement('div');row.className='row';
+    row.append(
+      btn('Слушать отсюда',()=>mplay(Math.max(0,t-0.3))),
+      btn('-0.05',()=>{FL[i]=Math.max(0,+(FL[i]-0.05).toFixed(2));fch()}),
+      btn('+0.05',()=>{FL[i]=+(FL[i]+0.05).toFixed(2);fch()}),
+      btn('Убрать',()=>{FL.splice(i,1);fch()}));
+    r.append(h,row);box.appendChild(r);
+  });
+}
+$('fcl').onclick=()=>{FL=[];drawFl()};
+$('fap').onclick=()=>{
+  if(!musicBuf){note('fnn','Сначала загрузи свой звук выше.');return}
+  const n=segs.length;
+  if(!n){note('fnn','Сначала добавь аяты.');return}
+  if(FL.length<n){note('fnn','Флажков нужно не меньше, чем кадров: кадров '+n+', флажков '+FL.length+'.');return}
+  mstop();
+  for(let i=0;i<n;i++){const end=i+1<FL.length?FL[i+1]:mdur();segs[i].dur=Math.max(0.3,Math.round((end-FL[i])*100)/100)}
+  musicOff=FL[0];VO={};VOT={};
+  refresh();
+  note('fnn','Готово: кадры подогнаны под звук, ролик начнётся с первого флажка. Нажми «Смотреть».');
+};
 
 /* голос чтеца в ролике */
 const EVF={'ar.alafasy':'Alafasy_128kbps','ar.shaatree':'Abu_Bakr_Ash-Shaatree_128kbps','ar.husary':'Husary_128kbps','ar.minshawi':'Minshawy_Murattal_128kbps','ar.abdulbasitmurattal':'Abdul_Basit_Murattal_192kbps','ar.mahermuaiqly':'MaherAlMuaiqly128kbps','ar.saoodshuraym':'Saood_ash-Shuraym_128kbps','ar.hudhaify':'Hudhaify_128kbps','ar.ahmedajamy':'Ahmed_ibn_Ali_al-Ajamy_128kbps_ketaballah.net'};
